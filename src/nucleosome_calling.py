@@ -13,14 +13,20 @@ And (Results, Fig 3A caption):
 "score = p - (lf + rf) / 2"
 where p = peak depth, lf/rf = mean depth of left/right flanking regions.
 
-Flank width is not explicitly stated as a number in the main text (only "flanking
-regions" / "linker regions", elsewhere characterized as ~50 bp given 147 bp
-nucleosome core + ~200 bp total periodicity => ~50 bp linker). We default flank
-width to 50 bp on each side as the most literature-consistent choice; override via
---flank if you have supplement-derived confirmation.
+UPDATE (flank width + offset now confirmed, not guessed): Pedersen 2014's own
+text doesn't give the flank width as a number. Hanghøj et al. 2016 (Mol Biol
+Evol, epiPALEOMIX -- an independent reimplementation of these exact methods,
+citing Pedersen 2014 directly) states it precisely in Fig. 1B's caption: "the
+nucleosome score is calculated as the coverage at the center minus the mean
+read depth of the two 25-bp flanking regions... defined with a 12-bp offset
+from 147-bp nucleosome window coordinates." That is: flanks are 25bp wide (not
+our earlier guess of 50bp), and are NOT adjacent to the 147bp window -- there's
+a 12bp gap between the window edge and where each flank region starts. Layout,
+left to right: [25bp flank][12bp gap][147bp window][12bp gap][25bp flank].
 
-This is a fully exact reimplementation of the described algorithm modulo that one
-unstated parameter (flank width).
+This is a real correction, not just added precision: the earlier default (50bp
+flank, no gap) used a different, larger, and immediately-adjacent region --
+flagged here as history, not hidden.
 """
 
 from dataclasses import dataclass
@@ -30,6 +36,8 @@ import numpy as np
 
 
 NUCLEOSOME_WIDTH = 147  # bp, stated explicitly in the paper throughout
+FLANK_WIDTH = 25        # bp, from Hanghøj et al. 2016 Fig. 1B
+FLANK_OFFSET = 12       # bp gap between window edge and flank start, same source
 
 
 @dataclass
@@ -39,11 +47,16 @@ class NucleosomeCall:
     score: float
 
 
-def call_nucleosomes(depth: np.ndarray, flank: int = 50,
+def call_nucleosomes(depth: np.ndarray, flank: int = FLANK_WIDTH,
+                      offset: int = FLANK_OFFSET,
                       nuc_width: int = NUCLEOSOME_WIDTH) -> List[NucleosomeCall]:
     """
     depth: 1D array of GC-corrected read depth over a contiguous region.
-    flank: bp on each side of the nucleosome window used as "linker" for scoring.
+    flank: bp width of each flanking region used for scoring (default 25bp,
+        Hanghøj et al. 2016 Fig. 1B).
+    offset: bp gap between the 147bp window's edge and where each flank region
+        starts (default 12bp, same source). Set to 0 to reproduce the earlier
+        adjacent-flank behavior if you need to compare against it.
 
     A position i is called a nucleosome center if depth[i] is the max value within
     the window [i - half, i + half] (147 bp wide, so half = 73 on the smaller side).
@@ -65,10 +78,13 @@ def call_nucleosomes(depth: np.ndarray, flank: int = 50,
         if np.argmax(window) != half:
             continue
 
-        left_start = max(i - half - flank, 0)
-        left_flank = depth[left_start:i - half]
-        right_end = min(i + half + 1 + flank, n)
-        right_flank = depth[i + half + 1:right_end]
+        left_flank_end = max(i - half - offset, 0)
+        left_flank_start = max(left_flank_end - flank, 0)
+        left_flank = depth[left_flank_start:left_flank_end]
+
+        right_flank_start = min(i + half + 1 + offset, n)
+        right_flank_end = min(right_flank_start + flank, n)
+        right_flank = depth[right_flank_start:right_flank_end]
 
         if len(left_flank) == 0 or len(right_flank) == 0:
             continue  # can't score at the very edge of the region
@@ -116,12 +132,13 @@ if __name__ == "__main__":
 
     p = argparse.ArgumentParser(description="Call nucleosomes from a GC-corrected depth .npy array.")
     p.add_argument("depth_npy")
-    p.add_argument("--flank", type=int, default=50)
+    p.add_argument("--flank", type=int, default=FLANK_WIDTH)
+    p.add_argument("--offset", type=int, default=FLANK_OFFSET)
     p.add_argument("--out", default=None, help="Optional CSV output path")
     args = p.parse_args()
 
     depth = np.load(args.depth_npy)
-    calls = call_nucleosomes(depth, flank=args.flank)
+    calls = call_nucleosomes(depth, flank=args.flank, offset=args.offset)
     print(f"Called {len(calls)} nucleosomes.")
 
     if args.out:

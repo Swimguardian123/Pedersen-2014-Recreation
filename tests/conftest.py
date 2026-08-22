@@ -186,3 +186,49 @@ def control_set_bams(tmp_path):
     _build_bam(target_path, n_reads=5, read_len=15)
 
     return str(source_path), str(target_path)
+
+
+@pytest.fixture
+def polymorphism_site_bam(tmp_path):
+    """
+    A reference with one CpG at position 100, covered by 10 forward-strand reads:
+    6 show the C->T flip (60%, above the 50% exclusion threshold, coverage 10 >=
+    5) -- simulating a genuine genomic C->T polymorphism rather than partial
+    post-mortem deamination, which the site-exclusion refinement should catch.
+    """
+    random.seed(99)
+    ref = list("".join(random.choice("ACGT") for _ in range(300)))
+    ref[100], ref[101] = "C", "G"
+    ref_seq = "".join(ref)
+
+    fasta_path = tmp_path / "poly_ref.fa"
+    with open(fasta_path, "w") as f:
+        f.write(">chrPoly\n")
+        for i in range(0, len(ref_seq), 60):
+            f.write(ref_seq[i:i + 60] + "\n")
+    pysam.faidx(str(fasta_path))
+
+    header = {"HD": {"VN": "1.0"}, "SQ": [{"LN": len(ref_seq), "SN": "chrPoly"}]}
+    unsorted_bam = tmp_path / "poly_unsorted.bam"
+    read_len = 30
+    with pysam.AlignmentFile(str(unsorted_bam), "wb", header=header) as outf:
+        for i in range(10):
+            seq = list(ref_seq[100:100 + read_len])
+            if i < 6:  # 6/10 reads show the flip
+                seq[0] = "T"
+            a = pysam.AlignedSegment()
+            a.query_name = f"poly_read{i}"
+            a.query_sequence = "".join(seq)
+            a.flag = 0
+            a.reference_id = 0
+            a.reference_start = 100
+            a.mapping_quality = 40
+            a.cigartuples = [(0, read_len)]
+            a.query_qualities = pysam.qualitystring_to_array("I" * read_len)
+            outf.write(a)
+
+    bam_path = tmp_path / "poly_test.bam"
+    pysam.sort("-o", str(bam_path), str(unsorted_bam))
+    pysam.index(str(bam_path))
+
+    return str(fasta_path), str(bam_path)

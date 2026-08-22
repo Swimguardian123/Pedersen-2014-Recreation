@@ -117,20 +117,37 @@ def spectrogram(signal: np.ndarray, fs: float = 1.0, nperseg: int = 100,
     return f, t, np.abs(Zxx)
 
 
-def phasogram(read_5prime_positions: np.ndarray, min_depth_positions: np.ndarray = None,
+def phasogram(read_5prime_positions: np.ndarray, min_depth: int = 5,
               max_distance: int = 1000) -> np.ndarray:
     """
     Phasogram (Valouev et al. 2011): distribution of pairwise distances between
     5'-end read-start positions on the same strand, restricted to positions with
-    >= 5 reads (per Methods: "counting the distance between pairs of 5' ends on the
-    same strand at positions with at least five reads").
+    sufficient read depth.
 
-    read_5prime_positions: sorted array of genomic positions of 5' read starts on
-        one strand (already filtered to positions with >=5 supporting reads --
-        pass one entry per *position*, not one per read, or pre-weight upstream).
+    read_5prime_positions: RAW per-read 5' positions on one strand -- one entry
+        per read, duplicates expected. This function groups by position and
+        applies min_depth internally (a previous version of this function took
+        an unused min_depth_positions parameter that was accepted but never
+        referenced in the body -- a real dead-parameter bug, fixed here rather
+        than left in place).
+
+    min_depth: minimum read count at a position for it to be included in the
+        phasogram. Pedersen et al. 2014's own text (this project's primary
+        target paper) states "at least five reads" -- kept as the default here.
+        Hanghoj et al. 2016's independent reimplementation of this exact method
+        (epiPALEOMIX) instead states "a minimal depth-of-coverage of three
+        reads." This is a genuine, confirmed discrepancy between the original
+        paper and its own follow-up reimplementation -- not something resolved
+        silently one way here. Pass min_depth=3 to match Hanghoj's convention
+        instead.
+
     Returns: histogram of pairwise distances, index = distance in bp (0..max_distance).
     """
-    positions = np.sort(np.asarray(read_5prime_positions))
+    from collections import Counter
+
+    counts = Counter(np.asarray(read_5prime_positions).tolist())
+    positions = np.array(sorted(pos for pos, c in counts.items() if c >= min_depth))
+
     hist = np.zeros(max_distance + 1, dtype=np.int64)
 
     # O(n * window) sliding approach: for each position, count forward distances

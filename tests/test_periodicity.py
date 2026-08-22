@@ -45,12 +45,39 @@ def test_dense_signal_does_not_return_nan():
 
 
 def test_phasogram_detects_known_spacing():
-    """Positions spaced exactly 200bp apart should produce a phasogram with a
-    long-range peak near 200bp."""
-    positions = np.arange(0, 10000, 200)  # perfectly regular 200bp spacing
-    hist = phasogram(positions, max_distance=1000)
+    """Positions spaced exactly 200bp apart, each with sufficient depth (5 reads
+    per position, matching the min_depth default), should produce a phasogram
+    with a long-range peak near 200bp."""
+    unique_positions = np.arange(0, 10000, 200)  # perfectly regular 200bp spacing
+    # simulate 5 reads at each position (min_depth default) by repeating each
+    # position 5 times, matching the RAW-per-read input the function now expects
+    raw_positions = np.repeat(unique_positions, 5)
+    hist = phasogram(raw_positions, min_depth=5, max_distance=1000)
     long_range, short_range = phasogram_dominant_periods(hist)
     assert abs(long_range - 200) < 20, f"expected ~200bp long-range peak, got {long_range}"
+
+
+def test_phasogram_min_depth_actually_filters():
+    """Regression test for the dead-parameter bug: positions below min_depth
+    must be excluded, not silently included regardless of the parameter."""
+    # position 500 has only 2 reads (below min_depth=5) -> should be excluded
+    # position 1000 has 6 reads (above min_depth=5) -> should be included
+    raw_positions = np.concatenate([
+        np.full(2, 500),
+        np.full(6, 1000),
+    ])
+    hist_filtered = phasogram(raw_positions, min_depth=5, max_distance=2000)
+    hist_unfiltered = phasogram(raw_positions, min_depth=1, max_distance=2000)
+
+    # with min_depth=5, only position 1000 survives -> no pairwise distances at
+    # all exist (only one qualifying position), so the histogram should be empty
+    assert hist_filtered.sum() == 0, (
+        "expected an empty histogram (only one position passes min_depth=5, "
+        "so there are no pairs) -- if this fails, min_depth may not be filtering"
+    )
+    # with min_depth=1, both positions survive -> at least one real pairwise
+    # distance (500) should show up
+    assert hist_unfiltered.sum() > 0, "expected real pairwise distances once both positions pass min_depth=1"
 
 
 if __name__ == "__main__":
@@ -58,4 +85,5 @@ if __name__ == "__main__":
     test_sparse_signal_returns_nan_not_a_fake_number()
     test_dense_signal_does_not_return_nan()
     test_phasogram_detects_known_spacing()
+    test_phasogram_min_depth_actually_filters()
     print("All periodicity tests passed.")

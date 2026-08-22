@@ -61,22 +61,32 @@ def test_select_top_calls_none_means_all():
 
 
 def test_purine_purine_signal_exact_on_known_sequence(tmp_path):
-    """A reference built as alternating purine-purine / pyrimidine-pyrimidine
-    blocks lets us predict the exact purine-purine dinucleotide signal at each
-    offset."""
-    # positions 95-104 (10bp): all purines (A/G) -> every adjacent pair is RR
-    purine_block = "AGAGAGAGAG"
-    ref_seq = "C" * 95 + purine_block + "C" * 95  # 200bp total, purine block at 95-104
+    """A reference built with the purine block flanked TIGHTLY by pyrimidines on
+    BOTH sides (not just one) lets this test catch an off-by-one indexing bug
+    in either direction -- an earlier version of this test used a longer purine
+    block with margin on only one side, which was concretely demonstrated (by
+    directly simulating both shift directions) to only catch a rightward
+    off-by-one error, not a leftward one. Fixed here, not just noted."""
+    # purine block EXACTLY at positions 96-104 (9bp, matching the 2*halfwidth+1
+    # window width below) -- flanked immediately by 'C' on both sides, so ANY
+    # 1bp shift in the fetch window (either direction) pulls in a 'C'.
+    purine_block = "AGAGAGAGA"
+    ref_seq = "C" * 96 + purine_block + "C" * 95  # 200bp total
     fasta_path = tmp_path / "np_ref2.fa"
     _write_fasta(fasta_path, ref_seq)
 
     call = NucleosomeCall(center_pos=100, peak_depth=5.0, score=5.0)  # center inside purine block
     signal = purine_pyrimidine_dinucleotide_signal(str(fasta_path), "chrNP", [call],
                                                      genome_offset=0, halfwidth=4)
-    # positions fully inside the purine block should show RR=1.0 (100%, since
-    # only one call, the pair is either purine-purine or not, deterministically)
-    center_idx = 4  # corresponds to position 100-101, both purines
-    assert signal[center_idx] == 1.0
+    # the entire fetched window (positions 96-104) is purine-only, so every
+    # adjacent pair should show RR=1.0 across the WHOLE signal array, not just
+    # the center -- checking all positions (not just index 4) is what actually
+    # makes a 1bp shift in either direction detectable
+    assert np.allclose(signal, 1.0), (
+        f"expected all-1.0 signal (tight purine window), got {signal} -- "
+        f"a 1bp off-by-one shift in either direction would show up as a <1.0 "
+        f"value somewhere in this array"
+    )
 
 
 if __name__ == "__main__":
