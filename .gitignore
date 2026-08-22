@@ -1,0 +1,26 @@
+# Data — large, downloadable, don't belong in git
+data/
+*.bam
+*.bai
+*.sai
+*.sam
+*.sra
+*.fastq
+*.fastq.gz
+*.fa
+*.fa.gz
+*.fai
+*.txt.gz
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# pytest
+.pytest_cache/
