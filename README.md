@@ -35,11 +35,11 @@ tests/      Automated regression suite (pytest) — 44 tests across 12 files,
 |---|---|---|---|
 | Read depth extraction | `src/depth.py` | Exact | Directly from BAM, no ambiguity |
 | GC-content correction | `src/gc_correction.py` | Good | F_gc/N_gc rate model per Benjamini & Speed 2012, sparse-bin smoothing, subtract/divide both supported. No mappability-track filtering on the background sample; one aDNA-margin parameter left at an unstated default |
-| Nucleosome calling + scoring | `src/nucleosome_calling.py` | Exact | Formula fully specified in Methods |
+| Nucleosome calling + scoring | `src/nucleosome_calling.py` | Exact | Formula fully specified in Methods. Flank width/offset refined against Hanghøj et al. 2016 Fig. 1B: 25bp flanks with a 12bp gap from the 147bp window (was an unconfirmed 50bp/adjacent guess) |
 | Control set (FDR baseline) | `src/control_set.py` | Exact logic | Needs a second modern WGS BAM to sample from (any small one works — see QUICKSTART.md) |
-| Periodicity (Welch, STFT, phasograms) | `src/periodicity.py` | Exact | Standard DSP, fully specified |
+| Periodicity (Welch, STFT, phasograms) | `src/periodicity.py` | Exact | Standard DSP, fully specified. `phasogram()`'s min-depth filter (a previously-dead parameter) is now actually implemented; default 5 (Pedersen 2014's stated value) with 3 available to match Hanghøj et al. 2016's independent reimplementation, a real confirmed discrepancy between the two papers |
 | Nucleotide/dinucleotide patterns | `src/nucleotide_patterns.py` | Exact | Mono + purine/pyrimidine dinucleotide positional frequencies across aligned dyads; stratify-by-score built in |
-| Methylation (Ms score) | `src/methylation.py` | Exact | Direct reimplementation of Pedersen's own Ms formula (not mapDamage's damage-curve model, deliberately); correct forward/reverse-strand C→T vs G→A handling; CpA/CpT/CpC negative controls for Fig 4B-style validation |
+| Methylation (Ms score) | `src/methylation.py` | Exact | Direct reimplementation of Pedersen's own Ms formula (not mapDamage's damage-curve model, deliberately); correct forward/reverse-strand C→T vs G→A handling; CpA/CpT/CpC negative controls for Fig 4B-style validation. Site-exclusion refinement added (`ms_score_filtered`, per Hanghøj et al. 2016): sites with >50% flip rate at ≥5x coverage — likely genuine polymorphisms, not deamination — are excluded; original unfiltered `ms_score()` kept unchanged for literal Pedersen 2014 behavior |
 | CTCF anchor analysis | `src/ctcf_analysis.py` | Exact | Real Fu et al. 2008 occupied/unoccupied site table (strand-paired); strand-oriented 25bp-bin averaging matches Methods |
 | Age-at-death | `src/age_estimation.py` | Exact | Two-layer pipeline (Ms→beta calibrated from modern donors, then Koch & Wagner 2011 beta→age) with real Figure 3A regression constants for both CpGs Pedersen used (cg07533148/TRIM58, cg01530101/KCNQ1DN) |
 | Expression inference | `src/expression_inference.py` | Exact | Rs (gene body/promoter Ms ratio), +1 nucleosome occupancy, phasing strength (reuses `periodicity.py`), plus GSE3058 fetch + Spearman-correlation evaluation |
@@ -96,3 +96,47 @@ pip install -r requirements.txt
    `refGene`).
 
 All four are now locked in by named regression tests in `tests/`.
+
+## Refinements from Hanghøj et al. 2016 (epiPALEOMIX)
+
+This is an independent reimplementation of Pedersen et al. 2014's exact
+methods (same GCcorrect, NucleoMap, MethylMap, phasogram approach), published
+by an overlapping author group. Rather than duplicate our own pipeline, we
+used it to resolve several parameters our own modules had left as documented,
+unconfirmed guesses:
+
+- **Nucleosome flank geometry** (`nucleosome_calling.py`) — 25bp flanks with a
+  12bp gap from the 147bp window (Fig. 1B), replacing an earlier 50bp/adjacent
+  guess.
+- **Phasogram min-depth** (`periodicity.py`) — confirmed a genuine discrepancy:
+  Pedersen 2014 states 5 reads minimum; Hanghøj 2016's own reimplementation of
+  the same method uses 3. Both are supported, defaulting to Pedersen's 5.
+- **Ms site-exclusion rule** (`methylation.py`) — sites with >50% C→T flip rate
+  at ≥5x coverage are excluded (likely genuine polymorphisms, not deamination).
+  Added as `ms_score_filtered()`, alongside the original unfiltered `ms_score()`.
+
+**Scoped but not yet built** (real, feasible, but each needs a new external
+data/tool dependency — a scope decision, not started without discussion):
+- **Mappability filtering** — the paper restricts nucleosome calls to 20kb
+  blocks with ≥0.9 mappability uniqueness (41-mers, Derrien et al. 2012).
+  Needs a public mappability track (e.g. UCSC's ENCODE mappability tracks) as
+  a practical substitute for the exact 41-mer tool used.
+- **Deamination-rate module** — `ds * ((1/k) - 1)` using mapDamage2's own `ds`/`k`
+  output. A bounded, specific use of mapDamage2 (just two summary parameters),
+  distinct from the full damage-curve model this project deliberately avoided
+  earlier.
+
+## Novel modules considered, not built
+
+- **WPS (Windowed Protection Score)** — a genuinely different nucleosome-
+  calling algorithm (Snyder et al. 2016) this paper compares against NucleoMap.
+  This paper confirms the window sizes tested (10-120bp) but not the exact
+  scoring formula (cited from Snyder et al. 2016, not reproduced in full here)
+  — would need that source paper before building, same approach as finding
+  Koch & Wagner's Figure 3A earlier.
+- **Horvath's DNAmAge clock** (353-CpG epigenetic age predictor) — likely
+  genuinely infeasible the way Koch & Wagner's 2-CpG model was tractable: this
+  needs a full external supplementary coefficient table (353 rows), not a
+  couple of numbers readable off one figure. Tentatively a documented
+  limitation, same category as full-genome coverage, unless that table turns
+  out to be findable.
