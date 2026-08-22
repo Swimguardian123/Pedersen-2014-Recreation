@@ -115,28 +115,32 @@ unconfirmed guesses:
   at ≥5x coverage are excluded (likely genuine polymorphisms, not deamination).
   Added as `ms_score_filtered()`, alongside the original unfiltered `ms_score()`.
 
-**Scoped but not yet built** (real, feasible, but each needs a new external
-data/tool dependency — a scope decision, not started without discussion):
-- **Mappability filtering** — the paper restricts nucleosome calls to 20kb
-  blocks with ≥0.9 mappability uniqueness (41-mers, Derrien et al. 2012).
-  Needs a public mappability track (e.g. UCSC's ENCODE mappability tracks) as
-  a practical substitute for the exact 41-mer tool used.
-- **Deamination-rate module** — `ds * ((1/k) - 1)` using mapDamage2's own `ds`/`k`
-  output. A bounded, specific use of mapDamage2 (just two summary parameters),
-  distinct from the full damage-curve model this project deliberately avoided
-  earlier.
+**Scoped, now built** (real, feasible, needed a new external dependency):
+- **`src/mappability_filter.py`** — mappability-based nucleosome-call
+  filtering. Real hg18 UCSC 40mer mappability track (closest to the paper's
+  stated 41-mers), 20kb blocks, ≥0.9 threshold, exactly as the paper states.
+  Needs `pyBigWig` (new dependency) and a ~1-2GB one-time download.
+- **`src/deamination_rate.py`** — `ds × ((1/k)-1)` from real mapDamage2
+  output. Parameter mapping (`ds`=DeltaS, `k`=Lambda) verified mechanistically,
+  not just name-matched: the formula is literally "deamination rate × expected
+  overhang length," which is exactly what mapDamage2's own model assumes.
+  Parses `Stats_out_MCMC_iter_summ_stat.csv` flexibly (case-insensitive
+  matching), since the exact column casing wasn't independently confirmed.
 
-## Novel modules considered, not built
+## Novel modules considered
 
-- **WPS (Windowed Protection Score)** — a genuinely different nucleosome-
-  calling algorithm (Snyder et al. 2016) this paper compares against NucleoMap.
-  This paper confirms the window sizes tested (10-120bp) but not the exact
-  scoring formula (cited from Snyder et al. 2016, not reproduced in full here)
-  — would need that source paper before building, same approach as finding
-  Koch & Wagner's Figure 3A earlier.
-- **Horvath's DNAmAge clock** (353-CpG epigenetic age predictor) — likely
-  genuinely infeasible the way Koch & Wagner's 2-CpG model was tractable: this
-  needs a full external supplementary coefficient table (353 rows), not a
-  couple of numbers readable off one figure. Tentatively a documented
-  limitation, same category as full-genome coverage, unless that table turns
-  out to be findable.
+- **WPS (Windowed Protection Score)** — `src/wps.py`, built. Confirmed formula
+  (Snyder et al. 2016, corroborated across 5 independent citing sources, not
+  just one figure): WPS(pos) = (fragments fully spanning a window centered
+  there) − (fragments with an endpoint inside that window). Core counting
+  logic (`wps_from_fragments`) is decoupled from BAM fetching, same pattern as
+  `anchor_profile()`, and hand-verified against a worked example. Included as
+  a genuine comparison method, not a Pedersen 2014 refinement — Hanghøj et
+  al. 2016's own benchmark found NucleoMap outperforms WPS on ancient data.
+- **Horvath's DNAmAge clock** (353-CpG epigenetic age predictor) — status
+  upgraded from "likely infeasible" to "feasible, real effort, one open item."
+  The `methylclock` Bioconductor package (peer-reviewed) bundles the actual
+  353 coefficients, a legitimate public source. Not yet built: Horvath's
+  specific nonlinear age-transformation formula needs one more targeted
+  verification before writing code against it — recollection isn't the bar
+  the rest of this project has been held to.

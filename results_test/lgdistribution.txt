@@ -1,0 +1,14 @@
+# table produced by mapDamage version 2.2.3
+# using mapped file data/test.bam and data/reference/hg18.fa as reference file
+# Std: strand of reads
+Std	Length	Occurences 
++	70	187
++	69	10
++	71	9
++	73	1
++	72	2
+-	70	166
+-	69	13
+-	71	8
+-	68	2
+-	72	1

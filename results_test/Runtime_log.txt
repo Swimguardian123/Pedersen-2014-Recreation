@@ -1,0 +1,7 @@
+2026-08-22 09:35:52,231	INFO	main: Started with the command: /Users/sseetharam28/Desktop/Pedersen 2014 Recreation/.venv/bin/mapDamage -i data/test.bam -r data/reference/hg18.fa
+2026-08-22 09:35:52,327	DEBUG	main: BAM read in 2.206503 seconds
+2026-08-22 09:35:53,315	INFO	mapdamage.rscript: Performing Bayesian estimates
+2026-08-22 09:35:53,315	DEBUG	mapdamage.rscript: Call: Rscript /Users/sseetharam28/Desktop/Pedersen 2014 Recreation/.venv/lib/python3.14/site-packages/mapdamage/Rscripts/stats/runGeneral.R --args 30 10000 10 50000 0 0 1 1 0 0 1 12 results_test/ /Users/sseetharam28/Desktop/Pedersen 2014 Recreation/.venv/lib/python3.14/site-packages/mapdamage/Rscripts/stats/ results_test/Stats_out 0 0 0 results_test/acgt_ratio.csv 0 0
+2026-08-22 09:38:08,429	DEBUG	mapdamage.rscript: Bayesian estimates completed in 135.113626 seconds
+2026-08-22 09:38:08,430	INFO	main: Successful run
+2026-08-22 09:38:08,430	DEBUG	main: Run completed in 138.309154 seconds
