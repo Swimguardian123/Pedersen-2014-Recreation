@@ -23,4 +23,7 @@ venv/
 .DS_Store
 
 # pytest
-.pytest_cache/
+.pytest_cache/*.csv
+*.bed
+*.chain.gz
+liftOver
