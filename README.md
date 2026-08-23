@@ -137,7 +137,15 @@ unconfirmed guesses:
   `anchor_profile()`, and hand-verified against a worked example. Included as
   a genuine comparison method, not a Pedersen 2014 refinement — Hanghøj et
   al. 2016's own benchmark found NucleoMap outperforms WPS on ancient data.
-- **Horvath's DNAmAge clock** (353-CpG epigenetic age predictor) — `src/dnamage_clock.py`, built and verified. Transform formula (`trafo`/`anti_trafo`) confirmed from two independent, actively-maintained R packages (`wateRmelon`, `sesame`) giving byte-identical source code — cross-confirmed, not recollected. Coefficient table (real 353-CpG Horvath weights + intercept) sourced via R (`methylclockData`, Bioconductor `ExperimentHub` entry `EH6071`) and exported to CSV; loader confirmed against the real export (exactly 353 CpGs parsed, matching the literature's stated count). **Important limitation, not a bug**: this verifies the *mechanism* only — an actual Saqqaq age estimate isn't possible without per-CpG-probe beta values (modern bisulfite-array-style measurements at 353 exact sites), which our aDNA pipeline doesn't produce in that form. See `scripts/run_dnamage_pipeline.py`'s own docstring for the honest scope of what it demonstrates.
+- **Horvath's DNAmAge clock** (353-CpG epigenetic age predictor) — `src/dnamage_clock.py`, mechanism built and verified. Transform formula (`trafo`/`anti_trafo`) confirmed from two independent, actively-maintained R packages (`wateRmelon`, `sesame`) giving byte-identical source code — cross-confirmed, not recollected. Coefficient table (real 353-CpG Horvath weights + intercept) sourced via R (`methylclockData`, Bioconductor `ExperimentHub` entry `EH6071`) and verified against the real export (exactly 353 CpGs parsed, matching the literature's stated count).
+
+  **Real coverage check performed, real answer: 0/353.** Following Hanghøj et al. 2016's own stated method (regional Ms score in 2kb windows around each clock CpG, using our existing `ms_score()` — not single-base bisulfite betas), the full toolchain was built: 450K probe coordinates (hg19) sourced via `IlluminaHumanMethylation450kanno.ilmn12.hg19`, joined against the real 353 clock CpG IDs, lifted over to hg18 (via `pyliftover`, verified to match the real UCSC `liftOver` tool's output for point coordinates), then checked against our real test BAM. **Result: zero of the 353 loci have any read coverage in a 2kb window.** Given our test data is a small, essentially-arbitrary subsample, this is the expected outcome, not a bug — same underlying resource constraint as full-genome coverage, now confirmed with real evidence rather than assumed. **Decision: treated as a documented limitation, not pursued further** — building the remaining Ms-to-beta conversion step would produce a number built on zero real CpGs, which isn't a meaningful result regardless of how correctly the code runs.
+
+  Full reusable toolchain, in case more real data is ever available:
+  `scripts/prepare_dnamage_coordinates.py` (CpG ID -> hg19 coordinate join) →
+  `scripts/liftover_cpg_coordinates.py` (hg19 -> hg18) →
+  `scripts/check_dnamage_coverage.py` (real coverage check, the decisive step) →
+  `scripts/run_dnamage_pipeline.py` (mechanism verification with synthetic betas).
 
 ## What we now know Hanghøj et al. 2016 actually did for ancient DNAmAge (not previously understood)
 
