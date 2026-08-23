@@ -137,10 +137,12 @@ unconfirmed guesses:
   `anchor_profile()`, and hand-verified against a worked example. Included as
   a genuine comparison method, not a Pedersen 2014 refinement — Hanghøj et
   al. 2016's own benchmark found NucleoMap outperforms WPS on ancient data.
-- **Horvath's DNAmAge clock** (353-CpG epigenetic age predictor) — status
-  upgraded from "likely infeasible" to "feasible, real effort, one open item."
-  The `methylclock` Bioconductor package (peer-reviewed) bundles the actual
-  353 coefficients, a legitimate public source. Not yet built: Horvath's
-  specific nonlinear age-transformation formula needs one more targeted
-  verification before writing code against it — recollection isn't the bar
-  the rest of this project has been held to.
+- **Horvath's DNAmAge clock** (353-CpG epigenetic age predictor) — `src/dnamage_clock.py`, built and verified. Transform formula (`trafo`/`anti_trafo`) confirmed from two independent, actively-maintained R packages (`wateRmelon`, `sesame`) giving byte-identical source code — cross-confirmed, not recollected. Coefficient table (real 353-CpG Horvath weights + intercept) sourced via R (`methylclockData`, Bioconductor `ExperimentHub` entry `EH6071`) and exported to CSV; loader confirmed against the real export (exactly 353 CpGs parsed, matching the literature's stated count). **Important limitation, not a bug**: this verifies the *mechanism* only — an actual Saqqaq age estimate isn't possible without per-CpG-probe beta values (modern bisulfite-array-style measurements at 353 exact sites), which our aDNA pipeline doesn't produce in that form. See `scripts/run_dnamage_pipeline.py`'s own docstring for the honest scope of what it demonstrates.
+
+## What we now know Hanghøj et al. 2016 actually did for ancient DNAmAge (not previously understood)
+
+A full re-read of the paper's text (not just earlier skimming) revealed this: Hanghøj's own ancient-sample DNAmAge estimates were **not** computed from real bisulfite-array betas either — they used **regional Ms scores computed in 2kb windows surrounding each of the 353 clock CpGs**, standing in for the beta value at that site. That's *exactly* our existing `methylation.py`'s `ms_score()`, applied at 353 specific loci instead of one arbitrary region. This substantially changes the feasibility picture for a real (if still low-confidence) age estimate — see the open question below.
+
+Two further concrete, real findings from that re-read:
+- **Hanghøj's real validation locus**: chr12:34,439,733–34,559,733, **in hg19** (Gaffney et al. 2012) — a well-characterized nucleosome positioning/phasing region, used as their independent ground-truth comparison for NucleoMap. Directly usable for our own `nucleosome_calling.py`/`wps.py` validation, but needs a real coordinate liftover to hg18 first — not a safe copy-paste, since this project has used hg18 throughout.
+- **epiPALEOMIX's real source code**: `github.com/KHanghoj/epiPALEOMIX` (MIT-licensed, `epiomix/` directory) — a legitimate primary source for resolving any remaining ambiguity in the Ms-to-beta conversion, not yet fully explored.
